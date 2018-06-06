@@ -1,5 +1,5 @@
 % TODO
-% Resample LF target trace
+% Resample LF  target trace
 % Scale data with cal file
 % Finish save
 
