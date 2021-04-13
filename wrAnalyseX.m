@@ -16,6 +16,8 @@ DRYLF = []; WETLF = []; WRILF = [];
 DRYGF = []; WETGF = []; WRIGF = []; 
 DRYlag= []; WETlag= []; WRIlag= [];
 DRYerr= []; WETerr= []; WRIerr= [];
+DRYatt= []; WETatt= []; WRIatt= [];
+DRYdec= []; WETdec= []; WRIdec= [];
 % Demographics
 AgeDr = []; SexDr = []; HandDr = [];
 AgeWe = []; SexWe = []; HandWe = [];
@@ -35,17 +37,19 @@ for f = 1:nfolders
     n = length(d);
     
     for i=1:n
-        
+        disp(d(i).name)
         load (d(i).name);
         switch condName
             case 'Dry'
-                [G,L,R,lag,n] = int_getdata(DATA);
+                [G,L,R,lag,n,Att,Dec] = int_getdata(DATA);
                 if n>5
                     nDr = nDr+1;
                     DRYLF = [DRYLF; L]; %#ok<*AGROW>
                     DRYGF = [DRYGF; G]; 
                     DRYlag= [DRYlag; lag];
                     DRYerr= [DRYerr; R];
+                    DRYatt = [DRYatt; Att];
+                    DRYdec = [DRYdec; Dec];
                     AgeDr = [AgeDr; Age];
                     if strcmp(Sex,'F')
                         SexDr = [SexDr; 1];
@@ -64,13 +68,15 @@ for f = 1:nfolders
                     fprintf('Exc: %s\n', d(i).name)
                 end
             case 'Wet'
-                [G,L,R,lag,n] = int_getdata(DATA);
+                [G,L,R,lag,n,Att,Dec] = int_getdata(DATA);
                 if n>5
                     nWe = nWe+1;
                     WETLF = [WETLF; L];
                     WETGF = [WETGF; G];
                     WETlag= [WETlag; lag];
                     WETerr= [WETerr; R];
+                    WETatt = [WETatt; Att];
+                    WETdec = [WETdec; Dec];
                     AgeWe = [AgeWe; Age];
                     if strcmp(Sex,'F')
                         SexWe = [SexWe; 1];
@@ -89,14 +95,16 @@ for f = 1:nfolders
                     fprintf('Exc: %s\n', d(i).name)
                 end
             case 'Wrinkly'
-                [G,L,R,lag,n] = int_getdata(DATA);
+                [G,L,R,lag,n,Att,Dec] = int_getdata(DATA);
                 if n>5
                     nWr = nWr+1;
                     WRILF = [WRILF; L];
                     WRIGF = [WRIGF; G];
                     WRIlag= [WRIlag; lag];
                     WRIerr= [WRIerr; R];
-                    AgeWr = [AgeWr; Age];
+                    WRIatt = [WRIatt; Att];
+                    WRIdec = [WRIdec; Dec];
+                   AgeWr = [AgeWr; Age];
                     if strcmp(Sex,'F')
                         SexWr = [SexWr; 1];
                     else
@@ -191,6 +199,20 @@ xlabel('Time (ms)')
 ylabel('Force (N)')
 set(gcf,'Position',[186 49 1122 636])
 
+figure; hold on
+line([.5 2.0],[.5 2.0],'color','k',...
+    'LineStyle','--','LineWidth',2)
+plot (mean(DRYLF(:,1000:end),1),mean(DRYGF(:,1000:end),1),'b','LineWidth',2);
+plot (mean(WETLF(:,1000:end),1),mean(WETGF(:,1000:end),1),'g','LineWidth',2);
+plot (mean(WRILF(:,1000:end),1),mean(WRIGF(:,1000:end),1),'r','LineWidth',2);
+legend('Target','Dry','Wet','Wrinkled','Location','SouthEast')
+xlabel('Load force (N)')
+ylabel('Grip force (N)')
+set (gca, 'YLim', [0 4.25])
+set (gca, 'XLim', [0.2 2.25])
+set (gca, 'YTick',0:.5:4)
+set (gca, 'XTick',0.5:.25:2)
+
 
 %% STATISTICS
 %
@@ -215,11 +237,6 @@ else
     c = multcompare(stats)
 end
 
-% Attack phase - rate of change
-APHASE = 4001:6000;
-
-% Decay phase - rate of change
-DPHASE = 11001:13000;
 
 % Correlation of age and GF-LF ratio
 A = [AgeDr;AgeWe;AgeWr];
@@ -289,16 +306,55 @@ else
 end
 
 
+% Slope of GF rate of change - attack
+Ya = [DRYatt; WETatt; WRIatt];
+Ga = [ones(size(DRYatt)); 2*ones(size(WETatt)); 3*ones(size(WRIatt))];
+disp('--- GF slope')
+[p,tbl,stats] = anova1(Ya,Ga,'off')
+% figure
+[c,m] = multcompare(stats,'display','off')
+% int_plotSlopeBars(Ya,Ga);
+
+
+% Slope of GF rate of change - decay
+Yd = [DRYdec; WETdec; WRIdec];
+Gd = [ones(size(DRYdec)); 2*ones(size(WETdec)); 3*ones(size(WRIdec))];
+disp('--- LF slope')
+% figure
+[p,tbl,stats] = anova1(Yd,Gd,'off')
+% figure
+[c,m] = multcompare(stats,'display','off')
+% int_plotSlopeBars(Yd,Gd);
+
+int_plotSlopeBars2(Ya,Ga,Yd,Gd);
+
+
+% t-test for slope???
+% [~,p,~,stats] = ttest(Y);
+% if p>=0.05
+%     fprintf('Lag not different to zero: t(%d)=%3.3f, p=%1.4f\n\n',...
+%         stats.df,stats.tstat,p);
+% else
+%     fprintf('Lag significantly different to zero: t(%d)=%3.3f, p=%1.4f, mean lag %4.3f ms\n\n',...
+%         stats.df,stats.tstat,p,mean(Y));
+% end
+%     
+    
+
 %% --- INTERNAL FUNCTIONS
 
 % This function does most of the hard work.
-function [GFm,LFm,RMSm,mlag,n] = int_getdata (DATA)
+function [GFm,LFm,RMSm,mlag,n,mAtt,mDec] = int_getdata (DATA)
 LF = [];
 GF = [];
 RMS= [];
+Att= [];
+Dec= [];
 [b,a] = butter (2, 20./500, 'low');
 n = 0;
 lags= [];
+APHASE = 4001:6000;
+DPHASE = 11001:13000;
 
 for i=1:8
     D = DATA{i};
@@ -345,12 +401,23 @@ for i=1:8
     else
         %
     end
+    
+    % slope of attack and decay phase - use simple linear regression
+    B = regress (gff(APHASE)',[APHASE' ones(size(APHASE'))]);
+    Att = [Att; B(1)*1000];
+    B = regress (gff(DPHASE)',[DPHASE' ones(size(DPHASE'))]);
+    Dec = [Dec; B(1)*1000];
+
 end
 
 LFm = mean(LF,1);
 GFm = mean(GF,1);
 RMSm= mean(RMS,1);
 mlag = mean(lags);
+mAtt = mean(Att);
+mDec = mean(Dec);
+% Att
+% Dec
 
 
 % Build the target load force trace
@@ -363,3 +430,87 @@ targettrace = [...
     5 * ones(1,1500)...    % 1.5s end
     ];
 T = targettrace./10;
+
+% Plot bar graph for slopes
+function int_plotSlopeBars(allData,group)
+    % A few common properties
+    xCenter = [1 2 3];% 4 5 7 8 10 11 13 14];
+    spread = 0.25; % 0=no spread; 0.5=random spread within box bounds (can be any value)
+    txtCentres = [1 2 3];% 4.5 7.5 10.5 13.5];
+
+    % Mean first
+    figure; hold on;
+    for i = 1:length(allData)
+        %plot(rand(size(allData(i)))*spread -(spread/2) + xCenter(i), allData(i), 'k.','linewidth', 2)
+        plot(rand(1)*spread -(spread/2) + xCenter(group(i)), allData(i), 'k.','linewidth', 2)
+    end
+    h = boxplot(allData,group,'Notch','on','positions',xCenter,...
+        'Symbol','ko','OutlierSize',4);
+    set(h, 'linewidth' ,2,'Color','k')
+    set(gca,'XLim',[-.5 4.5])
+%      set(gca,'YLim',[13 30])
+%     set(gca,'YTick',14:2:28)
+    set (gca,'XTick',txtCentres);
+    set(gca,'XTickLabel', {'Dry';'Wet';'Wrinkly'})
+%     TXT = {'**','**','ns','**','ns'};
+%     y = 29;
+%     for i=1:5
+%         text (txtCentres(i),y,TXT{i},'FontSize',18,'HorizontalAlignment','center',...
+%             'VerticalAlignment','middle');
+%     end
+    ylabel('Mean slope (N/sec)')
+
+    
+% Plot bar graph for slopes
+function int_plotSlopeBars2(allData1,group1,allData2,group2)
+xCenter = [1 2 3];% 4 5 7 8 10 11 13 14];
+spread = 0.25; % 0=no spread; 0.5=random spread within box bounds (can be any value)
+txtCentres = [1 2 3];% 4.5 7.5 10.5 13.5];
+figure
+%---
+subplot(1,2,1)
+hold on;
+for i = 1:length(allData1)
+    %plot(rand(size(allData(i)))*spread -(spread/2) + xCenter(i), allData(i), 'k.','linewidth', 2)
+    plot(rand(1)*spread -(spread/2) + xCenter(group1(i)), allData1(i), 'k.','linewidth', 2)
+end
+h = boxplot(allData1,group1,'Notch','on','positions',xCenter,...
+    'Symbol','ko','OutlierSize',3);
+line ([.5 3.5],[.5 .5],'color','k','LineStyle','--','LineWidth',2)
+set(h, 'linewidth' ,2,'Color','k')
+set(gca,'XLim',[-.5 4.5])
+      set(gca,'YLim',[-6 6])
+%     set(gca,'YTick',14:2:28)
+set (gca,'XTick',txtCentres);
+set(gca,'XTickLabel', {'Dry';'Wet';'Wrinkly'})
+%     TXT = {'**','**','ns','**','ns'};
+%     y = 29;
+%     for i=1:5
+%         text (txtCentres(i),y,TXT{i},'FontSize',18,'HorizontalAlignment','center',...
+%             'VerticalAlignment','middle');
+%     end
+ylabel('Mean slope (N/sec)')
+%---
+subplot(1,2,2)
+hold on;
+for i = 1:length(allData2)
+    %plot(rand(size(allData(i)))*spread -(spread/2) + xCenter(i), allData(i), 'k.','linewidth', 2)
+    plot(rand(1)*spread -(spread/2) + xCenter(group2(i)), allData2(i), 'k.','linewidth', 2)
+end
+h = boxplot(allData2,group2,'Notch','on','positions',xCenter,...
+    'Symbol','ko','OutlierSize',3);
+line ([.5 3.5],[-.5 -.5],'color','k','LineStyle','--','LineWidth',2)
+set(h, 'linewidth' ,2,'Color','k')
+set(gca,'XLim',[-.5 4.5])
+%      set(gca,'YLim',[13 30])
+%     set(gca,'YTick',14:2:28)
+      set(gca,'YLim',[-6 6])
+set (gca,'XTick',txtCentres);
+set(gca,'XTickLabel', {'Dry';'Wet';'Wrinkly'})
+%     TXT = {'**','**','ns','**','ns'};
+%     y = 29;
+%     for i=1:5
+%         text (txtCentres(i),y,TXT{i},'FontSize',18,'HorizontalAlignment','center',...
+%             'VerticalAlignment','middle');
+%     end
+%ylabel('Mean slope (N/sec)')
