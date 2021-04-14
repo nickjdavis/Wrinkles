@@ -16,6 +16,8 @@ DRYLF = []; WETLF = []; WRILF = [];
 DRYGF = []; WETGF = []; WRIGF = []; 
 DRYlag= []; WETlag= []; WRIlag= [];
 DRYerr= []; WETerr= []; WRIerr= [];
+DRYatt= []; WETatt= []; WRIatt= [];
+DRYdec= []; WETdec= []; WRIdec= [];
 % Demographics
 AgeDr = []; SexDr = []; HandDr = [];
 AgeWe = []; SexWe = []; HandWe = [];
@@ -35,17 +37,19 @@ for f = 1:nfolders
     n = length(d);
     
     for i=1:n
-        disp (d(i).name)
+        disp(d(i).name)
         load (d(i).name);
         switch condName
             case 'Dry'
-                [G,L,R,lag,n] = int_getdata(DATA);
+                [G,L,R,lag,n,Att,Dec] = int_getdata(DATA);
                 if n>5
                     nDr = nDr+1;
                     DRYLF = [DRYLF; L]; %#ok<*AGROW>
                     DRYGF = [DRYGF; G]; 
                     DRYlag= [DRYlag; lag];
                     DRYerr= [DRYerr; R];
+                    DRYatt = [DRYatt; Att];
+                    DRYdec = [DRYdec; Dec];
                     AgeDr = [AgeDr; Age];
                     if strcmp(Sex,'F')
                         SexDr = [SexDr; 1];
@@ -64,13 +68,15 @@ for f = 1:nfolders
                     fprintf('Exc: %s\n', d(i).name)
                 end
             case 'Wet'
-                [G,L,R,lag,n] = int_getdata(DATA);
+                [G,L,R,lag,n,Att,Dec] = int_getdata(DATA);
                 if n>5
                     nWe = nWe+1;
                     WETLF = [WETLF; L];
                     WETGF = [WETGF; G];
                     WETlag= [WETlag; lag];
                     WETerr= [WETerr; R];
+                    WETatt = [WETatt; Att];
+                    WETdec = [WETdec; Dec];
                     AgeWe = [AgeWe; Age];
                     if strcmp(Sex,'F')
                         SexWe = [SexWe; 1];
@@ -89,14 +95,16 @@ for f = 1:nfolders
                     fprintf('Exc: %s\n', d(i).name)
                 end
             case 'Wrinkly'
-                [G,L,R,lag,n] = int_getdata(DATA);
+                [G,L,R,lag,n,Att,Dec] = int_getdata(DATA);
                 if n>5
                     nWr = nWr+1;
                     WRILF = [WRILF; L];
                     WRIGF = [WRIGF; G];
                     WRIlag= [WRIlag; lag];
                     WRIerr= [WRIerr; R];
-                    AgeWr = [AgeWr; Age];
+                    WRIatt = [WRIatt; Att];
+                    WRIdec = [WRIdec; Dec];
+                   AgeWr = [AgeWr; Age];
                     if strcmp(Sex,'F')
                         SexWr = [SexWr; 1];
                     else
@@ -174,8 +182,8 @@ drc= [drm+drs drm(end:-1:1)-drs];
 
 
 % plot GF and LF traces, with error margins
+% This is Figure 2 of the manuscript
 figure
-colormap jet % To maintain consistency with older versions
 plot(int_getTargetTrace(),'k','LineWidth',2)
 hold on;
 plot ([DRYLFm' WETLFm' WRILFm'],'LineWidth',2);
@@ -185,12 +193,36 @@ fill(xc,wec,'g','FaceAlpha',0.4)
 fill(xc,wrc,'r','FaceAlpha',0.4)
 plot ([DRYLFm' WETLFm' WRILFm'],'LineWidth',2);
 plot ([DRYGFm' WETGFm' WRIGFm']);
+% show Attack, Static, Decay phases
+lineY = 0.325;
+line([4000 6000],  [lineY lineY],'Color','k','LineWidth',2) % A
+line([7000 10000], [lineY lineY],'Color','k','LineWidth',2) % S
+line([11000 13000],[lineY lineY],'Color','k','LineWidth',2) % D
+text(5000, .25,'A')
+text(8500, .25,'S')
+text(12000,.25,'D')
 set(gca,'XTick',1000:2000:15000)
 set(gca,'YTickLabel',{'0.0','0.5','1.0','1.5','2.0','2.5','3.0','3.5','4.0'});
 set(gca,'YLim',[0 4.2])
 xlabel('Time (ms)')
 ylabel('Force (N)')
 set(gcf,'Position',[186 49 1122 636])
+
+% Plot grip vs load force
+% This is Figure 4 of the manuscript
+figure; hold on
+line([.5 2.0],[.5 2.0],'color','k',...
+    'LineStyle','--','LineWidth',2)
+plot (mean(DRYLF(:,1000:end),1),mean(DRYGF(:,1000:end),1),'b','LineWidth',2);
+plot (mean(WETLF(:,1000:end),1),mean(WETGF(:,1000:end),1),'g','LineWidth',2);
+plot (mean(WRILF(:,1000:end),1),mean(WRIGF(:,1000:end),1),'r','LineWidth',2);
+legend('Target','Dry','Wet','Wrinkled','Location','SouthEast')
+xlabel('Load force (N)')
+ylabel('Grip force (N)')
+set (gca, 'YLim', [0 4.25])
+set (gca, 'XLim', [0.2 2.25])
+set (gca, 'YTick',0:.5:4)
+set (gca, 'XTick',0.5:.25:2)
 
 
 %% STATISTICS
@@ -204,7 +236,14 @@ WetPC = mean(WETGFseg,2)./mean(WETLFseg,2);
 WriPC = mean(WRIGFseg,2)./mean(WRILFseg,2);
 Y = [DryPC; WetPC; WriPC];
 G = [ones(size(DryPC)); 2*ones(size(WetPC)); 3*ones(size(WriPC))];
-[p,tbl,stats] = anova1(Y,G,'off');
+disp('Bartlett test')
+[p,stats] = vartestn(Y,G)
+disp('Kruskal-Wallis test')
+[p,tbl,stats] = kruskalwallis(Y,G,'off')
+% disp('One-way Anova')
+% NB - this test violates Bartlett's test, so use
+% K-W stats table for multcompare
+% [p,tbl,stats] = anova1(Y,G,'off');
 if p>=0.05
     fprintf('No significant effect of condition on GF:LF ratio: F(%d,%d)=%2.3f, p=%1.4f\n\n',...
         tbl{2,3},tbl{3,3},tbl{2,5},p);
@@ -215,6 +254,7 @@ else
     figure
     c = multcompare(stats)
 end
+
 
 % Correlation of age and GF-LF ratio
 A = [AgeDr;AgeWe;AgeWr];
@@ -229,12 +269,16 @@ else
     [B,~,~,~,stats] = regress (Y(I),[A(I) ones(size(A(I)))]);
     fprintf('Ratio = %3.3f * Age + %3.3f. R2 = %2.3f\n\n',B(1),B(2),stats(1))
 end
+%figure; plot(Y(I),A(I),'.'); title('Age - ratio')
 
 
 
 % Grip-load lag - one-way analysis of variance, plus one-sample t-test
 Y = [DRYlag; WETlag; WRIlag];
 G = [ones(size(DRYlag)); 2*ones(size(WETlag)); 3*ones(size(WRIlag))];
+disp('Bartlett test')
+[p,stats] = vartestn(Y,G)
+disp('one-way Anova')
 [p,tbl,stats] = anova1(Y,G,'off');
 if p>=0.05
     fprintf('No significant effect of condition on lag: F(%d,%d)=%2.3f, p=%1.4f\n\n',...
@@ -266,11 +310,14 @@ else
     [B,~,~,~,stats] = regress (Y(I),[A(I) ones(size(A(I)))]);
     fprintf('Lag = %3.3f * Age + %3.3f. R2 = %2.3f\n\n',B(1),B(2),stats(1))
 end
-
+%figure; plot(Y(I),A(I),'.'); title('Age - lag')
 
 % Load force error - one-way analysis of variance
 Y = [DRYerr; WETerr; WRIerr];
 G = [ones(size(DRYerr)); 2*ones(size(WETerr)); 3*ones(size(WRIerr))];
+disp('Bartlett test')
+[p,stats] = vartestn(Y,G)
+disp('One-way Anova')
 [p,tbl,stats] = anova1(Y,G,'off');
 if p>=0.05
     fprintf('No significant effect of condition on error: F(%d,%d)=%2.3f, p=%1.4f, mean r %1.4f\n\n',...
@@ -284,16 +331,46 @@ else
 end
 
 
+% Slope of GF rate of change - attack
+Ya = [DRYatt; WETatt; WRIatt];
+Ga = [ones(size(DRYatt)); 2*ones(size(WETatt)); 3*ones(size(WRIatt))];
+disp('--- GF slope')
+[p,tbl,stats] = anova1(Ya,Ga,'off')
+% figure
+[c,m] = multcompare(stats,'display','off')
+
+
+% Slope of GF rate of change - decay
+Yd = [DRYdec; WETdec; WRIdec];
+Gd = [ones(size(DRYdec)); 2*ones(size(WETdec)); 3*ones(size(WRIdec))];
+disp('--- LF slope')
+% figure
+[p,tbl,stats] = anova1(Yd,Gd,'off')
+% figure
+[c,m] = multcompare(stats,'display','off')
+
+
+% Plot the slopes of the GF in attack and decay phases.
+% Uses an internal function as it's a bit messy.
+% This is Figure 3 of the manuscript
+int_plotSlopeBars2(Ya,Ga,Yd,Gd);
+
+    
+
 %% --- INTERNAL FUNCTIONS
 
 % This function does most of the hard work.
-function [GFm,LFm,RMSm,mlag,n] = int_getdata (DATA)
+function [GFm,LFm,RMSm,mlag,n,mAtt,mDec] = int_getdata (DATA)
 LF = [];
 GF = [];
 RMS= [];
+Att= [];
+Dec= [];
 [b,a] = butter (2, 20./500, 'low');
 n = 0;
 lags= [];
+APHASE = 4001:6000;
+DPHASE = 11001:13000;
 
 for i=1:8
     D = DATA{i};
@@ -340,12 +417,23 @@ for i=1:8
     else
         %
     end
+    
+    % slope of attack and decay phase - use simple linear regression
+    B = regress (gff(APHASE)',[APHASE' ones(size(APHASE'))]);
+    Att = [Att; B(1)*1000];
+    B = regress (gff(DPHASE)',[DPHASE' ones(size(DPHASE'))]);
+    Dec = [Dec; B(1)*1000];
+
 end
 
 LFm = mean(LF,1);
 GFm = mean(GF,1);
 RMSm= mean(RMS,1);
 mlag = mean(lags);
+mAtt = mean(Att);
+mDec = mean(Dec);
+% Att
+% Dec
 
 
 % Build the target load force trace
@@ -358,3 +446,60 @@ targettrace = [...
     5 * ones(1,1500)...    % 1.5s end
     ];
 T = targettrace./10;
+
+% Plot bar graph for slopes
+function int_plotSlopeBars(allData,group)
+    % A few common properties
+    xCenter = [1 2 3];
+    spread = 0.25; % 0=no spread; 0.5=random spread within box bounds (can be any value)
+    txtCentres = [1 2 3];
+
+    % Mean first
+    figure; hold on;
+    for i = 1:length(allData)
+        plot(rand(1)*spread -(spread/2) + xCenter(group(i)), allData(i), 'k.','linewidth', 2)
+    end
+    h = boxplot(allData,group,'Notch','on','positions',xCenter,...
+        'Symbol','ko','OutlierSize',4);
+    set(h, 'linewidth' ,2,'Color','k')
+    set(gca,'XLim',[-.5 4.5])
+    set (gca,'XTick',txtCentres);
+    set(gca,'XTickLabel', {'Dry';'Wet';'Wrinkly'})
+    ylabel('Mean slope (N/sec)')
+
+    
+% Plot bar graph for slopes
+function int_plotSlopeBars2(allData1,group1,allData2,group2)
+xCenter = [1 2 3];% 4 5 7 8 10 11 13 14];
+spread = 0.25; % 0=no spread; 0.5=random spread within box bounds (can be any value)
+txtCentres = [1 2 3];% 4.5 7.5 10.5 13.5];
+figure
+%---
+subplot(1,2,1)
+hold on;
+for i = 1:length(allData1)
+    plot(rand(1)*spread -(spread/2) + xCenter(group1(i)), allData1(i), 'k.','linewidth', 2)
+end
+h = boxplot(allData1,group1,'Notch','on','positions',xCenter,...
+    'Symbol','ko','OutlierSize',3);
+line ([.5 3.5],[.5 .5],'color','k','LineStyle','--','LineWidth',2)
+set(h, 'linewidth' ,2,'Color','k')
+set(gca,'XLim',[-.5 4.5])
+      set(gca,'YLim',[-6 6])
+set (gca,'XTick',txtCentres);
+set(gca,'XTickLabel', {'Dry';'Wet';'Wrinkly'})
+ylabel('Mean slope (N/sec)')
+%---
+subplot(1,2,2)
+hold on;
+for i = 1:length(allData2)
+    plot(rand(1)*spread -(spread/2) + xCenter(group2(i)), allData2(i), 'k.','linewidth', 2)
+end
+h = boxplot(allData2,group2,'Notch','on','positions',xCenter,...
+    'Symbol','ko','OutlierSize',3);
+line ([.5 3.5],[-.5 -.5],'color','k','LineStyle','--','LineWidth',2)
+set(h, 'linewidth' ,2,'Color','k')
+set(gca,'XLim',[-.5 4.5])
+set(gca,'YLim',[-6 6])
+set (gca,'XTick',txtCentres);
+set(gca,'XTickLabel', {'Dry';'Wet';'Wrinkly'})
